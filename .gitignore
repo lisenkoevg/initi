@@ -1,4 +1,4 @@
 *.swp
 *.exe
 tmp
-
+gdb.txt

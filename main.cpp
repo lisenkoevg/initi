@@ -1,158 +1,176 @@
-﻿/*
-################################################################################
-# Описание бинарного протокола
-################################################################################
-
-По сети ходят пакеты вида
-packet : = size payload
-
-size - размер последовательности, в количестве элементов, может быть 0.
-
-payload - поток байтов(blob)
-payload состоит из последовательности сериализованных переменных разных типов :
-
-Описание типов и порядок их сериализации
-
-type : = id(uint64_t) data(blob)
-
-data : =
-    IntegerType - uint64_t
-    FloatType - double
-    StringType - size(uint64_t) blob
-    VectorType - size(uint64_t) ...(сериализованные переменные)
-
-Все данные передаются в little endian порядке байтов
-
-Необходимо реализовать сущности IntegerType, FloatType, StringType, VectorType
-Кроме того, реализовать вспомогательную сущность Any
-Сделать объект Serialisator с указанным интерфейсом.
-
-Конструкторы(ы) типов IntegerType, FloatType и StringType должны обеспечивать инициализацию, аналогичную инициализации типов uint64_t, double и std::string соответственно.
-Конструктор(ы) типа VectorType должен позволять инициализировать его списком любых из перечисленных типов(IntegerType, FloatType, StringType, VectorType) переданных как по ссылке, так и по значению.
-Все указанные сигнатуры должны быть реализованы.
-Сигнатуры шаблонных конструкторов условны, их можно в конечной реализации делать на усмотрение разработчика, можно вообще убрать.
-Vector::push должен быть именно шаблонной функцией. Принимает любой из типов: IntegerType, FloatType, StringType, VectorType.
-Serialisator::push должен быть именно шаблонной функцией.Принимает любой из типов: IntegerType, FloatType, StringType, VectorType, Any
-Реализация всех шаблонных функций, должна обеспечивать constraint requirements on template arguments, при этом, использование static_assert - запрещается.
-Код в функции main не подлежит изменению. Можно только добавлять дополнительные проверки.
-
-Архитектурные требования :
-1. Стаедарт - c++17
-2. Запрещаются виртуальные функции.
-3. Запрещается множественное и виртуальное наследование.
-4. Запрещается создание каких - либо объектов в куче, в том числе с использованием умных указателей.
-   Это требование не влечет за собой огранечений на использование std::vector, std::string и тп.
-5. Запрещается любое дублирование кода, такие случаи должны быть строго обоснованы. Максимально использовать обобщающие сущности.
-   Например, если в каждой из реализаций XType будет свой IdType getId() - это будет считаться ошибкой.
-6. Запрещается хранение value_type поля на уровне XType, оно должно быть вынесено в обобщающую сущность.
-7. Никаких других ограничений не накладывается, в том числе на создание дополнительных обобщающих сущностей и хелперов.
-8. XType должны реализовать сериализацию и десериализацию аналогичную Any.
-
-Пример сериализации VectorType(StringType("qwerty"), IntegerType(100500))
-{0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
- 0x03,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
- 0x02,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
- 0x02,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
- 0x06,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
- 0x71,0x77,0x65,0x72,0x74,0x79,0x00,0x00,
- 0x00,0x00,0x00,0x00,0x00,0x00,0x94,0x88,
- 0x01,0x00,0x00,0x00,0x00,0x00}
+/*
+Попытка создать прототип, выполняющий то, что требуется по ТЗ,
+но не обязательно соответствующий условиям ТЗ
 */
 
 #include <iostream>
-#include <vector>
 #include <fstream>
+#include <vector>
+#include <string>
+#include <iomanip>
+#include <algorithm>
+#include "utils.cpp"
+
+using std::cout;
+using std::endl;
+using std::string;
+using std::vector;
 
 using Id = uint64_t;
-using Buffer = std::vector<std::byte>;
+using Buffer = vector<std::byte>;
 
-enum class TypeId : Id {
-    Uint,
-    Float,
-    String,
-    Vector
-};
+enum class TypeId : Id { Uint, Float, String, Vector };
 
-class IntegerType {
-public:
-    template<typename ...Args>
-    IntegerType(Args&& ...);
-};
+Buffer serializeUint(uint64_t val) {
+  std::byte *b = reinterpret_cast<std::byte *>(&val);
+  size_t sz = sizeof(val);
+  auto ret = Buffer();
+  for (size_t i = 0; i != sz; ++i) {
+    ret.push_back(*(b + i));
+  }
+  return ret;
+}
 
-class FloatType {
-public:
-    template<typename ...Args>
-    FloatType(Args&& ...);
-};
-
-class StringType {
-public:
-    template<typename ...Args>
-    StringType(Args&& ...);
-};
-
-class VectorType {
-public:
-    template<typename ...Args>
-    VectorType(Args&& ...);
-
-    template<typename Arg>
-    void push_back(Arg&& _val);
-};
+class Serializator;
 
 class Any {
+  friend class Serializator;
+
 public:
-    template<typename ...Args>
-    Any(Args&& ...);
+  Any(TypeId tid) : typeId(tid) {}
+  TypeId getTypeId() const { return typeId; }
+  Id getType() const { return static_cast<Id>(typeId); }
 
-    void serialize(Buffer& _buff) const;
+protected:
+  Buffer serialize(Buffer val) {
+    auto ret = Buffer();
+    auto bTypeId = serializeUint(static_cast<uint64_t>(typeId));
+    std::copy(bTypeId.begin(), bTypeId.end(), back_inserter(ret));
+    std::copy(val.begin(), val.end(), back_inserter(ret));
+    return ret;
+  }
 
-    Buffer::const_iterator deserialize(Buffer::const_iterator _begin, Buffer::const_iterator _end);
+  static Buffer serialize(Any *item);
 
-    TypeId getPayloadTypeId() const;
-
-    template<typename Type>
-    auto& getValue() const;
-
-    template<TypeId kId>
-    auto& getValue() const;
-
-    bool operator == (const Any& _o) const;
+private:
+  TypeId typeId;
 };
+
+class IntegerType : public Any {
+public:
+  IntegerType(uint64_t val) : Any(TypeId::Uint), value(val) {}
+  Buffer serialize() { return Any::serialize(serializeUint(value)); }
+
+private:
+  uint64_t value;
+};
+
+class StringType : public Any {
+public:
+  StringType(string val) : Any(TypeId::String), value(val) {}
+  Buffer serialize() {
+    Buffer ret = serializeUint(value.size());
+    std::for_each(value.begin(), value.end(), [&ret](auto v) { ret.push_back(static_cast<std::byte>(v)); });
+    return Any::serialize(ret);
+  }
+
+private:
+  string value;
+};
+
+class VectorType : public Any {
+public:
+  VectorType() : Any(TypeId::Vector) {}
+
+  Buffer serialize() {
+    auto ret = serializeUint(items.size());
+    auto retItems = serialize(items);
+    std::copy(retItems.begin(), retItems.end(), back_inserter(ret));
+    return Any::serialize(ret);
+  }
+
+  void push_back(Any &val) { items.push_back(&val); }
+
+  static Buffer serialize(vector<Any *> v) {
+    auto ret = Buffer();
+    for (auto cur = v.begin(); cur != v.end(); ++cur) {
+      Any *item = *cur;
+      Buffer b = Any::serialize(item);
+      std::copy(b.begin(), b.end(), back_inserter(ret));
+    }
+    return ret;
+  }
+
+private:
+  vector<Any *> items;
+};
+
+Buffer Any::serialize(Any *item) {
+  Buffer b;
+  if (item->getTypeId() == TypeId::Uint) {
+    b = static_cast<IntegerType *>(item)->serialize();
+  } else if (item->getTypeId() == TypeId::String) {
+    b = static_cast<StringType *>(item)->serialize();
+  } else if (item->getTypeId() == TypeId::Vector) {
+    b = static_cast<VectorType *>(item)->serialize();
+  }
+  return b;
+}
 
 class Serializator {
 public:
-    template<typename Arg>
-    void push(Arg&& _val);
+  void push(Any &a) { storage.push_back(&a); }
 
-    Buffer serialize() const;
+  Buffer serialize() {
+    auto ret = serializeUint(storage.size());
+    for_each(storage.begin(), storage.end(), [&ret](Any *item) {
+      Buffer b = Any::serialize(item);
+      std::copy(b.begin(), b.end(), back_inserter(ret));
+    });
+    return ret;
+  }
 
-    static std::vector<Any> deserialize(const Buffer& _val);
-
-    const std::vector<Any>& getStorage() const;
+private:
+  vector<Any *> storage;
 };
 
+void writeBufferToFile(const Buffer &b, string filename) {
+  std::ofstream f = std::ofstream(filename, std::ios::out | std::ios::binary);
+  f.write(reinterpret_cast<const char *>(b.data()), b.size());
+  f.close();
+}
 
 int main() {
+  Any *a;
 
-    std::ifstream raw;
-    raw.open("raw.bin", std::ios_base::in | std::ios_base::binary);
-    if (!raw.is_open())
-        return 1;
-    raw.seekg(0, std::ios_base::end);
-    std::streamsize size = raw.tellg();
-    raw.seekg(0, std::ios_base::beg);
+  VectorType v;
 
-    Buffer buff(size);
-    raw.read(reinterpret_cast<char*>(buff.data()), size);
+  StringType s("qwerty");
+  v.push_back(static_cast<Any &>(s));
 
-    auto res = Serializator::deserialize(buff);
+  IntegerType i(100500);
+  v.push_back(static_cast<Any &>(i));
 
-    Serializator s;
-    for (auto&& i : res)
-        s.push(i);
+  VectorType v1;
+  v.push_back(static_cast<Any &>(v1));
 
-    std::cout << (buff == s.serialize()) << '\n';
+  /*
+  03 00 00 00 00 00 00 00
+  02 00 00 00 00 00 00 00
+  02 00 00 00 00 00 00 00
+  06 00 00 00 00 00 00 00
+  71 77 65 72 74 79 00 00
+  00 00 00 00 00 00 94 88
+  01 00 00 00 00 00
+  */
+  dumpBuffer(v.serialize());
+  cout << endl;
 
-    return 0;
+//   Serializator se;
+//   se.push(v);
+//   Buffer b;
+//   b = se.serialize();
+//   writeBufferToFile(b, "raw_test.bin");
+
+  return 0;
 }
