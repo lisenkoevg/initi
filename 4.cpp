@@ -1,3 +1,8 @@
+/*
+Попытка создать прототип, выполняющий то, что требуется по ТЗ,
+но не обязательно соответствующий условиям ТЗ
+*/
+
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -14,7 +19,7 @@ using std::vector;
 using Id = uint64_t;
 using Buffer = vector<std::byte>;
 
-enum class TypeId : Id { Uint = 0, String = 2, Vector = 3 };
+enum class TypeId : Id { Uint, Float, String, Vector };
 
 Buffer serializeUint(uint64_t val) {
   std::byte *b = reinterpret_cast<std::byte *>(&val);
@@ -72,20 +77,30 @@ public:
 
   Buffer serialize() {
     auto ret = serializeUint(items.size());
-    for (auto cur = items.begin(); cur != items.end(); ++cur) {
+    auto retItems = VectorType::serialize(items);
+    std::copy(retItems.begin(), retItems.end(), back_inserter(ret));
+    return Any::serialize(ret);
+  }
+
+  void push_back(Any &val) { items.push_back(&val); }
+
+  static Buffer serialize(vector<Any *> v) {
+    auto ret = Buffer();
+    for (auto cur = v.begin(); cur != v.end(); ++cur) {
       Any *item = *cur;
+//       cout <<  static_cast<Id>(item->getTypeId()) << endl;
       Buffer b;
       if (item->getTypeId() == TypeId::Uint) {
         b = static_cast<IntegerType *>(item)->serialize();
       } else if (item->getTypeId() == TypeId::String) {
         b = static_cast<StringType *>(item)->serialize();
+      } else if (item->getTypeId() == TypeId::Vector) {
+        cout << "Vector" << endl;
       }
       std::copy(b.begin(), b.end(), back_inserter(ret));
     }
-    return Any::serialize(ret);
+    return ret;
   }
-
-  void push_back(Any &val) { items.push_back(&val); }
 
 private:
   vector<Any *> items;
@@ -93,7 +108,13 @@ private:
 
 class Serializator {
 public:
-  void push(Any &a) { storage.push_back(&a); }
+  void push(Any a) { storage.push_back(&a); }
+  Buffer serialize() {
+    auto ret = serializeUint(storage.size());
+    auto retItems = VectorType::serialize(storage);
+    std::copy(retItems.begin(), retItems.end(), back_inserter(ret));
+    return ret;
+  }
 
 private:
   vector<Any *> storage;
@@ -109,7 +130,20 @@ int main() {
   IntegerType i(100500);
   v.push_back(static_cast<Any &>(i));
 
+  /*
+  03 00 00 00 00 00 00 00
+  02 00 00 00 00 00 00 00
+  02 00 00 00 00 00 00 00
+  06 00 00 00 00 00 00 00
+  71 77 65 72 74 79 00 00
+  00 00 00 00 00 00 94 88
+  01 00 00 00 00 00
+  */
   dumpBuffer(v.serialize());
+  cout << endl;
 
+  Serializator se;
+  se.push(v);
+  dumpBuffer(se.serialize());
   return 0;
 }
