@@ -1,5 +1,5 @@
 #include <iostream>
-#include "Serializator.cpp"
+#include "../Serializator.cpp"
 
 int main() {
   Any *a;
@@ -18,7 +18,7 @@ int main() {
   b = se.serialize();
   dumpBuffer(b);
   cout << endl;
-  writeBufferToFile(b, "raw_test.bin");
+  writeBufferToFile(b, "test2.bin");
 
   return 0;
 }
