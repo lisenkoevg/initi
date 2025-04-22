@@ -25,8 +25,22 @@ Buffer serializeUint(uint64_t val) {
   return ret;
 }
 
-class Serializator;
+template <typename T>
+class ValueStore {
+public:
+  ValueStore(const T &v) : val(v) {}
+  T &get() { return val; }
 
+  template <typename ElemT>
+  void push_back(const ElemT &v) { val.push_back(v); }
+
+  template <typename ElemT>
+  size_t size() { return val.size(); }
+private:
+  T val;
+};
+
+class Serializator;
 class Any {
   friend class Serializator;
 
@@ -53,23 +67,24 @@ private:
 class IntegerType : public Any {
 public:
   IntegerType(uint64_t val) : Any(TypeId::Uint), value(val) {}
-  Buffer serialize() { return Any::serialize(serializeUint(value)); }
+  Buffer serialize() { return Any::serialize(serializeUint(value.get())); }
 
 private:
-  uint64_t value;
+  ValueStore<uint64_t> value;
 };
 
 class StringType : public Any {
 public:
   StringType(string val) : Any(TypeId::String), value(val) {}
   Buffer serialize() {
-    Buffer ret = serializeUint(value.size());
-    std::for_each(value.begin(), value.end(), [&ret](auto v) { ret.push_back(static_cast<std::byte>(v)); });
+    string tmp = value.get();
+    Buffer ret = serializeUint(tmp.size());
+    std::for_each(tmp.begin(), tmp.end(), [&ret](auto v) { ret.push_back(static_cast<std::byte>(v)); });
     return Any::serialize(ret);
   }
 
 private:
-  string value;
+  ValueStore<string> value;
 };
 
 class FloatType : public Any {
@@ -77,29 +92,31 @@ public:
   FloatType(double val) : Any(TypeId::Float), value(val) {}
   Buffer serialize() {
     Buffer ret;
-    char *chPtr = reinterpret_cast<char *>(&value);
-    for (size_t i = 0; i != sizeof(value); ++i) {
+    char *chPtr = reinterpret_cast<char *>(&value.get());
+    for (size_t i = 0; i != sizeof(value.get()); ++i) {
       ret.push_back(*reinterpret_cast<std::byte *>(chPtr + i));
     }
     return Any::serialize(ret);
   }
 
 private:
-  double value;
+  ValueStore<double> value;
 };
 
 class VectorType : public Any {
 public:
-  VectorType() : Any(TypeId::Vector) {}
+  VectorType() : Any(TypeId::Vector), value(vector<Any *>()) {}
 
   Buffer serialize() {
-    auto ret = serializeUint(items.size());
-    auto retItems = serialize(items);
+    auto ret = serializeUint(value.size<Any>());
+    auto retItems = serialize(value.get());
     std::copy(retItems.begin(), retItems.end(), back_inserter(ret));
     return Any::serialize(ret);
   }
 
-  void push_back(Any &val) { items.push_back(&val); }
+  void push_back(Any &val) {
+    value.push_back(&val);
+  }
 
   static Buffer serialize(vector<Any *> v) {
     auto ret = Buffer();
@@ -112,7 +129,7 @@ public:
   }
 
 private:
-  vector<Any *> items;
+  ValueStore<vector<Any *>> value;
 };
 
 Buffer Any::serialize(Any *item) {

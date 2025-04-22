@@ -12,6 +12,9 @@ int main() {
   IntegerType i(100500);
   v.push_back(static_cast<Any &>(i));
 
+  FloatType f(2);
+  v.push_back(static_cast<Any &>(f));
+
   Serializator se;
   se.push(v);
   Buffer b;

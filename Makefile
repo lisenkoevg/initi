@@ -21,7 +21,7 @@ test: buildtest
       ./$$f > ./$${f}_actual.out; \
       diff -qN $${f}_actual.out $${f}_expected.out > /dev/null && rm $${f}_actual.out || { echo Test $${f} failed.; failed=1; }; \
     done; \
-    [[ -z "$$failed" ]] && echo Tests passed.
+    [[ -z "$$failed" ]] && { echo Tests passed.; beep.bat 2000 100; }
 
 clean:
 	find -type f \( -name '*.exe' -o -name '*_actual.out' \) -execdir rm '{}' \;
