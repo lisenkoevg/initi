@@ -20,5 +20,6 @@ int main() {
   cout << endl;
   writeBufferToFile(b, "raw_test.bin");
 
+  cout << se.toString();
   return 0;
 }

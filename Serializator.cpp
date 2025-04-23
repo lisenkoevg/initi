@@ -1,5 +1,6 @@
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <vector>
 #include <string>
 #include <iomanip>
@@ -32,15 +33,21 @@ public:
   T &get() { return val; }
 
   template <typename ElemT>
-  void push_back(const ElemT &v) { val.push_back(v); }
+  void push_back(const ElemT &v) {
+    val.push_back(v);
+  }
 
   template <typename ElemT>
-  size_t size() { return val.size(); }
+  size_t size() {
+    return val.size();
+  }
+
 private:
   T val;
 };
 
 class Serializator;
+
 class Any {
   friend class Serializator;
 
@@ -48,6 +55,9 @@ public:
   Any(TypeId tid) : typeId(tid) {}
   TypeId getTypeId() const { return typeId; }
   Id getType() const { return static_cast<Id>(typeId); }
+
+  template <TypeId kId>
+  auto &getValue() const;
 
 protected:
   Buffer serialize(Buffer val) {
@@ -114,9 +124,7 @@ public:
     return Any::serialize(ret);
   }
 
-  void push_back(Any &val) {
-    value.push_back(&val);
-  }
+  void push_back(Any &val) { value.push_back(&val); }
 
   static Buffer serialize(vector<Any *> v) {
     auto ret = Buffer();
@@ -134,17 +142,49 @@ private:
 
 Buffer Any::serialize(Any *item) {
   Buffer b;
-  if (item->getTypeId() == TypeId::Uint) {
+  //   return getValue<item->getTypeId()>().serialize();
+  switch (item->getTypeId()) {
+  case TypeId::Uint:
     b = static_cast<IntegerType *>(item)->serialize();
-  } else if (item->getTypeId() == TypeId::Float) {
+    break;
+  case TypeId::Float:
     b = static_cast<FloatType *>(item)->serialize();
-  } else if (item->getTypeId() == TypeId::String) {
+    break;
+  case TypeId::String:
     b = static_cast<StringType *>(item)->serialize();
-  } else if (item->getTypeId() == TypeId::Vector) {
+    break;
+  case TypeId::Vector:
     b = static_cast<VectorType *>(item)->serialize();
+    break;
+  default:
+    abort();
+    break;
   }
   return b;
 }
+
+#if 0
+template <typename kId>
+auto &Any::getValue() const {
+  switch (kId) {
+  case TypeId::Uint:
+    return static_cast<IntegerType *>(this);
+    break;
+  case TypeId::Float:
+    return static_cast<FloatType *>(this);
+    break;
+  case TypeId::String:
+    return static_cast<StringType *>(this);
+    break;
+  case TypeId::Vector:
+    return static_cast<VectorType *>(this);
+    break;
+  default:
+    abort();
+    break;
+  }
+}
+#endif
 
 class Serializator {
 public:
@@ -157,6 +197,12 @@ public:
       std::copy(b.begin(), b.end(), back_inserter(ret));
     });
     return ret;
+  }
+
+  string toString() {
+    std::stringstream ss;
+    ss << storage.size() << "\n";
+    return ss.str();
   }
 
 private:

@@ -17,11 +17,12 @@ tests/%: tests/%.cpp Serializator.cpp
 	g++ $(CXXFLAGS) $@.cpp -o $@.exe
 
 test: buildtest
-	@cd $(testDir); for f in $(testNames); do \
+	@cd $(testDir); \
+    for f in $(testNames); do \
       ./$$f > ./$${f}_actual.out; \
       diff -qN $${f}_actual.out $${f}_expected.out > /dev/null && rm $${f}_actual.out || { echo Test $${f} failed.; failed=1; }; \
     done; \
-    [[ -z "$$failed" ]] && { echo Tests passed.; beep.bat 2000 100; }
+    [[ -z "$$failed" ]] && { type beep.bat > /dev/null 2>&1 && beep.bat 2000 100; echo Tests passed.; }
 
 clean:
 	find -type f \( -name '*.exe' -o -name '*_actual.out' \) -execdir rm '{}' \;
