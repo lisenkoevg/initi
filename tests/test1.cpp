@@ -2,8 +2,6 @@
 #include "../Serializator.cpp"
 
 int main() {
-  Any *a;
-
   VectorType v;
 
   StringType s("qwerty");
@@ -18,7 +16,7 @@ int main() {
   b = se.serialize();
   dumpBuffer(b);
   cout << endl;
-  writeBufferToFile(b, "test1.bin");
+//   writeBufferToFile(b, "test1.bin");
 
   return 0;
 }

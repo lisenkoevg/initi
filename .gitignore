@@ -2,3 +2,4 @@
 *.exe
 tmp
 gdb.txt
+Session.vim

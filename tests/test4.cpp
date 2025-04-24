@@ -15,11 +15,8 @@ int main() {
 
   Serializator se;
   se.push(v);
-  Buffer b;
-  b = se.serialize();
-  dumpBuffer(b);
-  cout << endl;
-//   writeBufferToFile(b, "test2.bin");
+
+  cout << se.toString() << endl;
 
   return 0;
 }

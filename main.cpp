@@ -2,8 +2,6 @@
 #include "Serializator.cpp"
 
 int main() {
-  Any *a;
-
   VectorType v;
 
   StringType s("qwerty");

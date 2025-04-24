@@ -9,6 +9,7 @@
 using std::cout;
 using std::endl;
 using std::string;
+using std::to_string;
 using std::vector;
 
 using Id = uint64_t;
@@ -25,6 +26,9 @@ Buffer serializeUint(uint64_t val) {
   }
   return ret;
 }
+
+int depth = 0;
+string pad() { return string(depth * 2, ' ') ; }
 
 template <typename T>
 class ValueStore {
@@ -56,8 +60,8 @@ public:
   TypeId getTypeId() const { return typeId; }
   Id getType() const { return static_cast<Id>(typeId); }
 
-  template <TypeId kId>
-  auto &getValue() const;
+  virtual Buffer serialize() = 0;
+  virtual string toString() = 0;
 
 protected:
   Buffer serialize(Buffer val) {
@@ -68,8 +72,6 @@ protected:
     return ret;
   }
 
-  static Buffer serialize(Any *item);
-
 private:
   TypeId typeId;
 };
@@ -77,7 +79,10 @@ private:
 class IntegerType : public Any {
 public:
   IntegerType(uint64_t val) : Any(TypeId::Uint), value(val) {}
-  Buffer serialize() { return Any::serialize(serializeUint(value.get())); }
+  Buffer serialize() override { return Any::serialize(serializeUint(value.get())); }
+  string toString() override {
+    return pad() + "IntegerType(" + to_string(value.get()) + ")\n";
+  }
 
 private:
   ValueStore<uint64_t> value;
@@ -86,11 +91,15 @@ private:
 class StringType : public Any {
 public:
   StringType(string val) : Any(TypeId::String), value(val) {}
-  Buffer serialize() {
+  Buffer serialize() override {
     string tmp = value.get();
     Buffer ret = serializeUint(tmp.size());
     std::for_each(tmp.begin(), tmp.end(), [&ret](auto v) { ret.push_back(static_cast<std::byte>(v)); });
     return Any::serialize(ret);
+  }
+  string toString() override {
+    string tmp = value.get();
+    return pad() + "StringType[" + to_string(tmp.size()) + "](" + value.get() + ")\n";
   }
 
 private:
@@ -100,7 +109,7 @@ private:
 class FloatType : public Any {
 public:
   FloatType(double val) : Any(TypeId::Float), value(val) {}
-  Buffer serialize() {
+  Buffer serialize() override {
     Buffer ret;
     char *chPtr = reinterpret_cast<char *>(&value.get());
     for (size_t i = 0; i != sizeof(value.get()); ++i) {
@@ -108,6 +117,7 @@ public:
     }
     return Any::serialize(ret);
   }
+  string toString() override { return pad() + "FloatType(" + to_string(value.get()) + ")\n"; }
 
 private:
   ValueStore<double> value;
@@ -117,11 +127,21 @@ class VectorType : public Any {
 public:
   VectorType() : Any(TypeId::Vector), value(vector<Any *>()) {}
 
-  Buffer serialize() {
+  Buffer serialize() override {
     auto ret = serializeUint(value.size<Any>());
     auto retItems = serialize(value.get());
     std::copy(retItems.begin(), retItems.end(), back_inserter(ret));
     return Any::serialize(ret);
+  }
+
+  string toString() override {
+    string res = pad() + "VectorType[" + to_string(value.size<Any>()) + "]\n";
+    ++depth;
+    for (auto &i : value.get()) {
+      res += i->toString();
+    }
+    --depth;
+    return res;
   }
 
   void push_back(Any &val) { value.push_back(&val); }
@@ -130,7 +150,7 @@ public:
     auto ret = Buffer();
     for (auto cur = v.begin(); cur != v.end(); ++cur) {
       Any *item = *cur;
-      Buffer b = Any::serialize(item);
+      Buffer b = item->serialize();
       std::copy(b.begin(), b.end(), back_inserter(ret));
     }
     return ret;
@@ -140,52 +160,6 @@ private:
   ValueStore<vector<Any *>> value;
 };
 
-Buffer Any::serialize(Any *item) {
-  Buffer b;
-  //   return getValue<item->getTypeId()>().serialize();
-  switch (item->getTypeId()) {
-  case TypeId::Uint:
-    b = static_cast<IntegerType *>(item)->serialize();
-    break;
-  case TypeId::Float:
-    b = static_cast<FloatType *>(item)->serialize();
-    break;
-  case TypeId::String:
-    b = static_cast<StringType *>(item)->serialize();
-    break;
-  case TypeId::Vector:
-    b = static_cast<VectorType *>(item)->serialize();
-    break;
-  default:
-    abort();
-    break;
-  }
-  return b;
-}
-
-#if 0
-template <typename kId>
-auto &Any::getValue() const {
-  switch (kId) {
-  case TypeId::Uint:
-    return static_cast<IntegerType *>(this);
-    break;
-  case TypeId::Float:
-    return static_cast<FloatType *>(this);
-    break;
-  case TypeId::String:
-    return static_cast<StringType *>(this);
-    break;
-  case TypeId::Vector:
-    return static_cast<VectorType *>(this);
-    break;
-  default:
-    abort();
-    break;
-  }
-}
-#endif
-
 class Serializator {
 public:
   void push(Any &a) { storage.push_back(&a); }
@@ -193,7 +167,7 @@ public:
   Buffer serialize() {
     auto ret = serializeUint(storage.size());
     for_each(storage.begin(), storage.end(), [&ret](Any *item) {
-      Buffer b = Any::serialize(item);
+      Buffer b = item->serialize();
       std::copy(b.begin(), b.end(), back_inserter(ret));
     });
     return ret;
@@ -201,7 +175,9 @@ public:
 
   string toString() {
     std::stringstream ss;
-    ss << storage.size() << "\n";
+    ss << "[" << to_string(storage.size()) << "]\n";
+    for (auto &i : storage)
+      ss << i->toString();
     return ss.str();
   }
 

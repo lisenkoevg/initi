@@ -1,5 +1,5 @@
 obj := main
-CXXFLAGS := -std=c++17
+CXXFLAGS := -std=c++17 -Wfatal-errors
 
 testDir := tests
 testSrc := $(shell find $(testDir) -type f -name '*.cpp' -printf '%f\n')
