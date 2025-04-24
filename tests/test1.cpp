@@ -14,8 +14,9 @@ int main() {
   se.push(v);
   Buffer b;
   b = se.serialize();
+
+  cout << se.toString() << endl;
   dumpBuffer(b);
-  cout << endl;
 //   writeBufferToFile(b, "test1.bin");
 
   return 0;
