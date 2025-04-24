@@ -92,6 +92,10 @@ protected:
 
 private:
   TypeId typeId;
+//   IntegerType i;
+//   StringType s;
+//   FloatType f;
+//   VectorType v;
 };
 
 Any::Any(Buffer::const_iterator &iter) {
@@ -101,6 +105,7 @@ Any::Any(Buffer::const_iterator &iter) {
 
 class IntegerType : public Any {
 public:
+  IntegerType() = default;
   IntegerType(uint64_t val) : Any(TypeId::Uint), value(val) {}
   Buffer serialize() override { return Any::serialize(serializeUint(value.get())); }
   string toString() override { return pad() + "IntegerType(" + to_string(value.get()) + ")\n"; }
@@ -111,6 +116,7 @@ private:
 
 class StringType : public Any {
 public:
+  StringType() = default;
   StringType(string val) : Any(TypeId::String), value(val) {}
   Buffer serialize() override {
     string tmp = value.get();
@@ -129,6 +135,7 @@ private:
 
 class FloatType : public Any {
 public:
+  FloatType() = default;
   FloatType(double val) : Any(TypeId::Float), value(val) {}
   Buffer serialize() override {
     Buffer ret;

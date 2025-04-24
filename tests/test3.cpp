@@ -2,11 +2,22 @@
 #include "../Serializator.cpp"
 
 int main() {
+  VectorType v;
+
+  StringType s("qwerty");
+  v.push_back(static_cast<Any &>(s));
+
+  IntegerType i(100500);
+  v.push_back(static_cast<Any &>(i));
+
   Serializator se;
-  Buffer b = se.serialize();
+  se.push(v);
+  Buffer b;
+  b = se.serialize();
 
   cout << se.toString() << endl;
   dumpBuffer(b);
+//   writeBufferToFile(b, "test1.bin");
 
   return 0;
 }
