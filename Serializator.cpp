@@ -28,7 +28,7 @@ Buffer serializeUint(uint64_t val) {
 }
 
 int depth = 0;
-string pad() { return string(depth * 2, ' ') ; }
+string pad() { return string(depth * 2, ' '); }
 
 template <typename T>
 class ValueStore {
@@ -80,9 +80,7 @@ class IntegerType : public Any {
 public:
   IntegerType(uint64_t val) : Any(TypeId::Uint), value(val) {}
   Buffer serialize() override { return Any::serialize(serializeUint(value.get())); }
-  string toString() override {
-    return pad() + "IntegerType(" + to_string(value.get()) + ")\n";
-  }
+  string toString() override { return pad() + "IntegerType(" + to_string(value.get()) + ")\n"; }
 
 private:
   ValueStore<uint64_t> value;
