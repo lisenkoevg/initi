@@ -5,9 +5,11 @@
 #include <string>
 #include <iomanip>
 #include <algorithm>
+#define PR (cout << __PRETTY_FUNCTION__ << endl);
 
 using std::cout;
 using std::endl;
+using std::ifstream;
 using std::string;
 using std::to_string;
 using std::vector;
@@ -16,15 +18,21 @@ using Id = uint64_t;
 using Buffer = vector<std::byte>;
 
 enum class TypeId : Id { Uint, Float, String, Vector };
+string toString(TypeId);
 
-Buffer serializeUint(uint64_t val) {
-  std::byte *b = reinterpret_cast<std::byte *>(&val);
-  size_t sz = sizeof(val);
-  auto ret = Buffer();
-  for (size_t i = 0; i != sz; ++i) {
-    ret.push_back(*(b + i));
-  }
-  return ret;
+void dumpUint(uint64_t val);
+void dumpBuffer(const std::vector<std::byte> &b);
+void writeBufferToFile(const Buffer &b, const string &filename);
+
+Buffer serializeUint(uint64_t val);
+
+// Read uint64_t start from given iterator and advance iterator forward by sizeof(uint64_t)
+uint64_t deserializeUint(Buffer::const_iterator &);
+
+template <typename T>
+void typeChecker(T) {
+  cout << __PRETTY_FUNCTION__;
+  cout << " (typeid.name = " << typeid(T).name() << ")" << endl;
 }
 
 int depth = 0;
@@ -42,7 +50,7 @@ public:
   }
 
   template <typename ElemT>
-  size_t size() {
+  uint64_t size() {
     return val.size();
   }
 
@@ -56,12 +64,22 @@ class Any {
   friend class Serializator;
 
 public:
+  Any() {}
   Any(TypeId tid) : typeId(tid) {}
+  Any(Buffer::const_iterator &);
   TypeId getTypeId() const { return typeId; }
   Id getType() const { return static_cast<Id>(typeId); }
 
-  virtual Buffer serialize() = 0;
-  virtual string toString() = 0;
+  virtual Buffer serialize() {
+    PR;
+    return Buffer();
+  }
+  virtual string toString() {
+    PR;
+    return string();
+  }
+
+  ~Any() {}
 
 protected:
   Buffer serialize(Buffer val) {
@@ -75,6 +93,11 @@ protected:
 private:
   TypeId typeId;
 };
+
+Any::Any(Buffer::const_iterator &iter) {
+  auto typeIdUint = deserializeUint(iter);
+  typeId = static_cast<TypeId>(typeIdUint);
+}
 
 class IntegerType : public Any {
 public:
@@ -110,7 +133,7 @@ public:
   Buffer serialize() override {
     Buffer ret;
     char *chPtr = reinterpret_cast<char *>(&value.get());
-    for (size_t i = 0; i != sizeof(value.get()); ++i) {
+    for (uint64_t i = 0; i != sizeof(value.get()); ++i) {
       ret.push_back(*reinterpret_cast<std::byte *>(chPtr + i));
     }
     return Any::serialize(ret);
@@ -179,12 +202,41 @@ public:
     return ss.str();
   }
 
+  static vector<Any> deserialize(const Buffer &b);
+
 private:
   vector<Any *> storage;
 };
 
+vector<Any> Serializator::deserialize(const Buffer &b) {
+  vector<Any> ret;
+  auto iter = b.cbegin();
+  auto size = deserializeUint(iter);
+  for (uint64_t i = 0; i != size; ++i) {
+    ret.push_back(Any(iter));
+  }
+  return ret;
+}
+
+Buffer serializeUint(uint64_t val) {
+  std::byte *b = reinterpret_cast<std::byte *>(&val);
+  uint64_t sz = sizeof(val);
+  auto ret = Buffer();
+  for (uint64_t i = 0; i != sz; ++i) {
+    ret.push_back(*(b + i));
+  }
+  return ret;
+}
+
+uint64_t deserializeUint(Buffer::const_iterator &iter) {
+  uint64_t ret = 0;
+  for (uint64_t i = 0; i != sizeof(uint64_t); ++i, ++iter)
+    *(reinterpret_cast<std::byte *>(&ret) + i) = *iter;
+  return ret;
+}
+
 void dumpUint(uint64_t val) {
-  for (size_t i = 0; i < sizeof(val); ++i) {
+  for (uint64_t i = 0; i < sizeof(val); ++i) {
     if (i != 0)
       cout << " ";
     std::byte *b = reinterpret_cast<std::byte *>(&val);
@@ -194,12 +246,15 @@ void dumpUint(uint64_t val) {
 }
 
 void dumpBuffer(const std::vector<std::byte> &b) {
-  for (size_t i = 0; i != b.size(); ++i) {
+  for (uint64_t i = 0; i != b.size(); ++i) {
     if (i != 0) {
       if (i % 8 != 0)
         cout << " ";
-      else
+      else {
         cout << endl;
+        if (i % 64 == 0)
+          cout << endl;
+      }
     }
     cout << std::hex << std::setw(2) << std::setfill('0') << (0xff & static_cast<char>(b[i]));
   }
@@ -211,3 +266,16 @@ void writeBufferToFile(const Buffer &b, const string &filename) {
   f.write(reinterpret_cast<const char *>(b.data()), b.size());
   f.close();
 }
+
+// clang-format off
+string toString(TypeId v) {
+  string ret = "TypeId::";
+  switch (v) {
+    case TypeId::Uint: return ret + "Uint";
+    case TypeId::Float: return ret + "Float";
+    case TypeId::String: return ret + "String";
+    case TypeId::Vector: return ret + "Vector";
+    default: return "ERROR";
+  }
+}
+// clang-format on
