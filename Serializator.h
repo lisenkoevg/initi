@@ -63,7 +63,6 @@ private:
 
 Buffer IntegerType::serialize() { return serializeUint(value.get()); }
 string IntegerType::toString() { return pad() + "IntegerType(" + to_string(value.get()) + ")\n"; }
-#endif
 
 class StringType {
 public:
@@ -87,6 +86,7 @@ string StringType::toString() {
   string tmp = value.get();
   return pad() + "StringType[" + to_string(tmp.size()) + "](" + value.get() + ")\n";
 }
+#endif
 
 #if 0
 class FloatType {
@@ -155,8 +155,8 @@ class Any {
 
 public:
   Any(VectorType val) : typeId(TypeId::Vector), vVal(val) {}
-  Any(StringType val) : typeId(TypeId::String), sVal(val) {}
-//   Any(IntegerType val) : typeId(TypeId::Uint), iVal(val) {}
+  //   Any(StringType val) : typeId(TypeId::String), sVal(val) {}
+  //   Any(IntegerType val) : typeId(TypeId::Uint), iVal(val) {}
   //
   //   any(typeid tid) : typeid(tid) {}
   //   any(buffer::const_iterator &);
@@ -182,8 +182,8 @@ public:
 
 private:
   TypeId typeId;
-//   IntegerType iVal;
-  StringType sVal;
+  //   IntegerType iVal;
+  //   StringType sVal;
   //   FloatType fVal;
   VectorType vVal;
 };
@@ -194,7 +194,7 @@ auto &getValue() {}
 template <TypeId kId>
 auto &Any::getValue() {
   if (kId == TypeId::Vector)
-    return v;
+    return vVal;
 }
 
 Buffer Any::serialize() {
