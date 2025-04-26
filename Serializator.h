@@ -22,9 +22,9 @@ string toString(TypeId v) {
 // clang-format on
 
 template <typename T>
-void typeChecker(T) {
+void typeChecker(T&& t) {
   cout << __PRETTY_FUNCTION__;
-  cout << " (typeid.name = " << typeid(T).name() << ")" << endl;
+  cout << " (typeid.name = " << typeid(t).name() << ")" << endl;
 }
 
 int depth = 0;
@@ -50,10 +50,9 @@ private:
   T val;
 };
 
-#if 0
 class IntegerType {
 public:
-  IntegerType(uint64_t val) : value(val) {}
+  IntegerType(uint64_t val = 0) : value(val) {}
   Buffer serialize();
   string toString();
 
@@ -66,7 +65,7 @@ string IntegerType::toString() { return pad() + "IntegerType(" + to_string(value
 
 class StringType {
 public:
-  StringType(string val) : value(val) {}
+  StringType(string val = "") : value(val) {}
   Buffer serialize();
   string toString();
 
@@ -86,29 +85,28 @@ string StringType::toString() {
   string tmp = value.get();
   return pad() + "StringType[" + to_string(tmp.size()) + "](" + value.get() + ")\n";
 }
-#endif
 
-#if 0
 class FloatType {
 public:
-  FloatType() = default;
-  FloatType(double val) : Any(TypeId::Float), value(val) {}
-  Buffer serialize() override {
-    Buffer ret;
-    char *chPtr = reinterpret_cast<char *>(&value.get());
-    for (uint64_t i = 0; i != sizeof(value.get()); ++i) {
-      ret.push_back(*reinterpret_cast<std::byte *>(chPtr + i));
-    }
-    return Any::serialize(ret);
-  }
-  string toString() override { return pad() + "FloatType(" + to_string(value.get()) + ")\n"; }
+  FloatType(double val = 0) : value(val) {}
+  Buffer serialize();
+  string toString();
 
 private:
   ValueStore<double> value;
 };
-*/
 
-#endif
+Buffer FloatType::serialize() {
+  Buffer ret;
+  auto tmp = value.get();
+  char *chPtr = reinterpret_cast<char *>(&tmp);
+  for (uint64_t i = 0; i != sizeof(tmp); ++i) {
+    ret.push_back(*reinterpret_cast<std::byte *>(chPtr + i));
+  }
+  return ret;
+}
+
+string FloatType::toString() { return pad() + "FloatType(" + to_string(value.get()) + ")\n"; }
 
 class Any;
 
@@ -121,48 +119,18 @@ public:
   template <typename T>
   void push_back(T &val);
 
-  //
-  //   static Buffer serialize(vector<Any *> v) {
-  //     auto ret = Buffer();
-  //     for (auto cur = v.begin(); cur != v.end(); ++cur) {
-  //       Any *item = *cur;
-  //       Buffer b = item->serialize();
-  //       std::copy(b.begin(), b.end(), back_inserter(ret));
-  //     }
-  //     return ret;
-  //   }
-
 private:
   ValueStore<vector<Any>> value;
 };
-
-string VectorType::toString() {
-  string res = pad() + "VectorType[" + to_string(value.size<Any>()) + "]\n";
-  //   ++depth;
-  //   for (auto &i : value.get()) {
-  //     res += i->toString();
-  //   }
-  //   --depth;
-  return res;
-}
-
-template <typename T>
-void VectorType::push_back(T &val) {
-  value.push_back(Any(val));
-}
 
 class Any {
 
 public:
   Any(VectorType val) : typeId(TypeId::Vector), vVal(val) {}
-  //   Any(StringType val) : typeId(TypeId::String), sVal(val) {}
-  //   Any(IntegerType val) : typeId(TypeId::Uint), iVal(val) {}
-  //
-  //   any(typeid tid) : typeid(tid) {}
-  //   any(buffer::const_iterator &);
-  //   typeid gettypeid() const { return typeid; }
-  //   id gettype() const { return static_cast<id>(typeid); }
-  //
+  Any(StringType val) : typeId(TypeId::String), sVal(val) {}
+  Any(IntegerType val) : typeId(TypeId::Uint), iVal(val) {}
+  Any(FloatType val) : typeId(TypeId::Float), fVal(val) {}
+
   template <typename T>
   auto &getValue();
 
@@ -172,19 +140,13 @@ public:
   Buffer serialize();
   string toString();
 
-  //   Buffer serialize(Buffer val) {
-  //     auto ret = Buffer();
-  //     auto bTypeId = serializeUint(static_cast<uint64_t>(typeId));
-  //     std::copy(bTypeId.begin(), bTypeId.end(), back_inserter(ret));
-  //     std::copy(val.begin(), val.end(), back_inserter(ret));
-  //     return ret;
-  //   }
+  TypeId getPayloadTypeId() const;
 
 private:
   TypeId typeId;
-  //   IntegerType iVal;
-  //   StringType sVal;
-  //   FloatType fVal;
+  IntegerType iVal;
+  StringType sVal;
+  FloatType fVal;
   VectorType vVal;
 };
 
@@ -199,23 +161,56 @@ auto &Any::getValue() {
 
 Buffer Any::serialize() {
   Buffer ret = serializeUint(static_cast<uint64_t>(typeId));
-  Buffer bVal;
+  Buffer tmp;
+  // clang-format off
   switch (typeId) {
-  case TypeId::Vector:
-    auto val = getValue<TypeId::Vector>();
-    bVal = val.serialize();
+    case TypeId::Vector:
+      tmp = vVal.serialize(); break;
+    case TypeId::Uint:
+      tmp = iVal.serialize(); break;
+    case TypeId::String:
+      tmp = sVal.serialize(); break;
+    case TypeId::Float:
+      tmp = fVal.serialize(); break;
   }
-  copy(bVal.cbegin(), bVal.cend(), back_inserter(ret));
+  // clang-format on
+  copy(tmp.cbegin(), tmp.cend(), back_inserter(ret));
   return ret;
 }
+
 string Any::toString() {
-  string ret;
+  string tmp;
+  // clang-format off
   switch (typeId) {
-  case TypeId::Vector:
-    auto val = getValue<TypeId::Vector>();
-    ret = val.toString();
+    case TypeId::Vector:
+      tmp = vVal.toString(); break;
+    case TypeId::Uint:
+      tmp = iVal.toString(); break;
+    case TypeId::String:
+      tmp = sVal.toString(); break;
+    case TypeId::Float:
+      tmp = fVal.toString(); break;
   }
-  return ret;
+  // clang-format on
+  return tmp;
+}
+
+TypeId Any::getPayloadTypeId() const { return typeId; }
+
+template <typename T>
+void VectorType::push_back(T &val) {
+  Any tmp = Any(val);
+  value.push_back(tmp);
+}
+
+string VectorType::toString() {
+  string res = pad() + "VectorType[" + to_string(value.size<Any>()) + "]\n";
+  ++depth;
+  for (auto &item : value.get()) {
+    res += item.toString();
+  }
+  --depth;
+  return res;
 }
 
 Buffer VectorType::serialize() {
@@ -225,15 +220,7 @@ Buffer VectorType::serialize() {
     copy(bItem.cbegin(), bItem.cend(), back_inserter(ret));
   }
   return ret;
-  //   auto retItems = serialize(value.get());
-  //   std::copy(retItems.begin(), retItems.end(), back_inserter(ret));
-  //   return Any::serialize(ret);
 }
-
-// Any::Any(Buffer::const_iterator &iter) {
-//   auto typeIdUint = deserializeUint(iter);
-//   typeId = static_cast<TypeId>(typeIdUint);
-// }
 
 class Serializator {
 public:
@@ -241,14 +228,17 @@ public:
   string toString();
 
   template <typename Arg>
-  void push(Arg val) {
-    Any a{val};
-    storage.push_back(a);
-  }
+  void push(Arg &&val);
   //   static vector<Any> deserialize(const Buffer &b);
 private:
   vector<Any> storage;
 };
+
+template <typename Arg>
+void Serializator::push(Arg &&val) {
+  Any a{val};
+  storage.push_back(a);
+}
 
 Buffer Serializator::serialize() {
   auto ret = serializeUint(storage.size());
@@ -262,8 +252,9 @@ Buffer Serializator::serialize() {
 string Serializator::toString() {
   std::stringstream ss;
   ss << "[" << to_string(storage.size()) << "]\n";
-  for (auto &item : storage)
+  for (auto &item : storage) {
     ss << item.toString();
+  }
   return ss.str();
 }
 
@@ -278,4 +269,5 @@ vector<Any> Serializator::deserialize(const Buffer &b) {
   return ret;
 }
 #endif
+
 #endif

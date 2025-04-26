@@ -5,13 +5,13 @@ int main() {
   VectorType v;
 
   StringType s("qwerty");
-  v.push_back(static_cast<Any &>(s));
+  v.push_back(s);
 
   IntegerType i(100500);
-  v.push_back(static_cast<Any &>(i));
+  v.push_back(i);
 
   FloatType f(2);
-  v.push_back(static_cast<Any &>(f));
+  v.push_back(f);
 
   Serializator se;
   se.push(v);
