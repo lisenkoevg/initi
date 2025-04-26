@@ -1,5 +1,7 @@
 #include <iostream>
-#include "../Serializator.cpp"
+#include "../types.h"
+#include "../Serializator.h"
+#include "../utils.h"
 
 int main() {
   Serializator se;

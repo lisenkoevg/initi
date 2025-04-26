@@ -1,5 +1,5 @@
 #include <iostream>
-#include "../Serializator.cpp"
+#include "../Serializator.h"
 
 int main() {
   VectorType v;
