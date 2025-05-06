@@ -12,7 +12,7 @@ testNamesDir := $(addprefix $(testDir)/,$(testNames))
 all: main
 
 main: main.o $(objects)
-	g++ $(CXXFLAGS) -g main.o -o main
+	g++ $(CXXFLAGS) -g main.o utils.o -o main
 
 main.o: main.cpp
 	g++ -c $(CXXFLAGS) -g main.cpp -o $@

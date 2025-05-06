@@ -49,7 +49,7 @@ void writeBufferToFile(const Buffer &b, const string &filename) {
   f.close();
 }
 
-Buffer readBufFromFile(string filename) {
+Buffer readBufferFromFile(string filename) {
   ifstream raw;
   std::streamsize size = 0;
   raw.open("tmp/raw_test.bin", std::ios::in | std::ios::binary);

@@ -12,6 +12,6 @@ Buffer serializeUint(uint64_t val);
 uint64_t deserializeUint(Buffer::const_iterator &);
 
 void writeBufferToFile(const Buffer &b, const string &filename);
-Buffer readBufFromFile(string filename);
+Buffer readBufferFromFile(string filename);
 
 #endif
