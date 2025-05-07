@@ -33,7 +33,7 @@ test: buildtest
 	for f in $(testNames); do \
 	  ./$$f > ./$${f}_actual.out; \
 	  diff -qN $${f}_actual.out $${f}_expected.out > /dev/null && rm $${f}_actual.out || \
-        { echo Test $${f} failed.; failed=1; diff --left-column -W200 -y $${f}_expected.out $${f}_actual.out; }; \
+        { echo Test $${f} failed.; failed=1; diff --text --new-file --left-column -W200 -y $${f}_expected.out $${f}_actual.out; }; \
 	done; \
 	[[ -z "$$failed" ]] && { type beep.bat > /dev/null 2>&1 && beep.bat 2000 100; echo Tests passed.; }
 

@@ -8,21 +8,24 @@
 
 string toString(TypeId);
 
-// clang-format off
 string toString(TypeId v) {
   string ret = "TypeId::";
   switch (v) {
-    case TypeId::Uint: return ret + "Uint";
-    case TypeId::Float: return ret + "Float";
-    case TypeId::String: return ret + "String";
-    case TypeId::Vector: return ret + "Vector";
-    default: return "ERROR";
+  case TypeId::Uint:
+    return ret + "Uint";
+  case TypeId::Float:
+    return ret + "Float";
+  case TypeId::String:
+    return ret + "String";
+  case TypeId::Vector:
+    return ret + "Vector";
+  default:
+    return ret;
   }
 }
-// clang-format on
 
 template <typename T>
-void typeChecker(T&& t) {
+void typeChecker(T &&t) {
   cout << __PRETTY_FUNCTION__;
   cout << " (typeid.name = " << typeid(t).name() << ")" << endl;
 }
@@ -52,22 +55,30 @@ private:
 
 class IntegerType {
 public:
-  IntegerType(uint64_t val = 0) : value(val) {}
+  using value_type = uint64_t;
+  IntegerType(value_type val = 0) : value(val) {}
   Buffer serialize();
   string toString();
+  static IntegerType deserialize(Buffer::const_iterator &);
 
 private:
-  ValueStore<uint64_t> value;
+  ValueStore<value_type> value;
 };
 
 Buffer IntegerType::serialize() { return serializeUint(value.get()); }
 string IntegerType::toString() { return pad() + "IntegerType(" + to_string(value.get()) + ")\n"; }
+IntegerType IntegerType::deserialize(Buffer::const_iterator &iter) {
+  auto ret = deserializeUint(iter);
+  return IntegerType(ret);
+}
 
 class StringType {
 public:
   StringType(string val = "") : value(val) {}
   Buffer serialize();
   string toString();
+
+  static StringType deserialize(Buffer::const_iterator &);
 
 private:
   ValueStore<string> value;
@@ -83,17 +94,30 @@ Buffer StringType::serialize() {
 
 string StringType::toString() {
   string tmp = value.get();
-  return pad() + "StringType[" + to_string(tmp.size()) + "](" + value.get() + ")\n";
+  return pad() + "StringType[" + to_string(tmp.size()) + "](" + tmp + ")\n";
+}
+
+StringType StringType::deserialize(Buffer::const_iterator &iter) {
+  auto size = deserializeUint(iter);
+  string ret = "";
+  for (uint64_t i = 0; i != size; ++i, ++iter) {
+    auto ch = static_cast<char>(*iter);
+    ret.push_back(ch);
+  }
+  return StringType(ret);
 }
 
 class FloatType {
 public:
-  FloatType(double val = 0) : value(val) {}
+  using value_type = double;
+  FloatType(value_type val = 0) : value(val) {}
   Buffer serialize();
   string toString();
 
+  static FloatType deserialize(Buffer::const_iterator &);
+
 private:
-  ValueStore<double> value;
+  ValueStore<value_type> value;
 };
 
 Buffer FloatType::serialize() {
@@ -108,16 +132,30 @@ Buffer FloatType::serialize() {
 
 string FloatType::toString() { return pad() + "FloatType(" + to_string(value.get()) + ")\n"; }
 
+FloatType FloatType::deserialize(Buffer::const_iterator &iter) {
+  FloatType::value_type ret;
+  for (uint64_t i = 0; i != sizeof(ret); ++i, ++iter) {
+    auto ch = static_cast<char>(*iter);
+    *(reinterpret_cast<char *>(&ret) + i) = ch;
+  }
+  return FloatType{ret};
+}
+
 class Any;
 
 class VectorType {
 public:
   VectorType() : value(ValueStore<vector<Any>>(vector<Any>())) {}
+
+  static VectorType deserialize(Buffer::const_iterator &);
+
   string toString();
   Buffer serialize();
 
   template <typename T>
   void push_back(T &val);
+
+  Any &operator[](uint64_t idx);
 
 private:
   ValueStore<vector<Any>> value;
@@ -131,6 +169,7 @@ public:
   Any(IntegerType val) : typeId(TypeId::Uint), iVal(val) {}
   Any(FloatType val) : typeId(TypeId::Float), fVal(val) {}
 
+  // How these two getValue() methods below should look like?
   template <typename T>
   auto &getValue();
 
@@ -142,8 +181,12 @@ public:
 
   TypeId getPayloadTypeId() const;
 
+  static Any deserialize(Buffer::const_iterator &iter);
+
 private:
   TypeId typeId;
+
+  // memory waste (union?)
   IntegerType iVal;
   StringType sVal;
   FloatType fVal;
@@ -154,52 +197,91 @@ template <typename T>
 auto &getValue() {}
 
 template <TypeId kId>
-auto &Any::getValue() {
-  if (kId == TypeId::Vector)
-    return vVal;
-}
+auto &Any::getValue() {}
+
+// How to get rid of switch operator in serialize(), deserialize() and toString() methods below?
 
 Buffer Any::serialize() {
   Buffer ret = serializeUint(static_cast<uint64_t>(typeId));
   Buffer tmp;
-  // clang-format off
   switch (typeId) {
-    case TypeId::Vector:
-      tmp = vVal.serialize(); break;
-    case TypeId::Uint:
-      tmp = iVal.serialize(); break;
-    case TypeId::String:
-      tmp = sVal.serialize(); break;
-    case TypeId::Float:
-      tmp = fVal.serialize(); break;
+  case TypeId::Vector:
+    tmp = vVal.serialize();
+    break;
+  case TypeId::Uint:
+    tmp = iVal.serialize();
+    break;
+  case TypeId::String:
+    tmp = sVal.serialize();
+    break;
+  case TypeId::Float:
+    tmp = fVal.serialize();
+    break;
   }
-  // clang-format on
   copy(tmp.cbegin(), tmp.cend(), back_inserter(ret));
   return ret;
 }
 
 string Any::toString() {
   string tmp;
-  // clang-format off
   switch (typeId) {
-    case TypeId::Vector:
-      tmp = vVal.toString(); break;
-    case TypeId::Uint:
-      tmp = iVal.toString(); break;
-    case TypeId::String:
-      tmp = sVal.toString(); break;
-    case TypeId::Float:
-      tmp = fVal.toString(); break;
+  case TypeId::Vector:
+    tmp = vVal.toString();
+    break;
+  case TypeId::Uint:
+    tmp = iVal.toString();
+    break;
+  case TypeId::String:
+    tmp = sVal.toString();
+    break;
+  case TypeId::Float:
+    tmp = fVal.toString();
+    break;
   }
-  // clang-format on
   return tmp;
 }
 
 TypeId Any::getPayloadTypeId() const { return typeId; }
 
+Any Any::deserialize(Buffer::const_iterator &iter) {
+  auto typeIdInt = deserializeUint(iter);
+  auto typeId = static_cast<TypeId>(typeIdInt);
+  switch (typeId) {
+  case TypeId::Vector: {
+    auto val = VectorType::deserialize(iter);
+    return Any{val};
+  }
+  case TypeId::String: {
+    auto val = StringType::deserialize(iter);
+    return Any(val);
+  }
+  case TypeId::Uint: {
+    auto val = IntegerType::deserialize(iter);
+    return Any(val);
+  }
+  case TypeId::Float: {
+    auto val = FloatType::deserialize(iter);
+    return Any(val);
+  }
+  default:
+    cout << "Error: wrong typeId = " << typeIdInt << endl;
+    abort();
+  }
+}
+
+VectorType VectorType::deserialize(Buffer::const_iterator &iter) {
+  VectorType ret;
+  auto size = deserializeUint(iter);
+  for (uint64_t i = 0; i != size; ++i) {
+    Any a = Any::deserialize(iter);
+    ret.push_back(a);
+  }
+  return ret;
+}
+
 template <typename T>
 void VectorType::push_back(T &val) {
-  Any tmp = Any(val);
+  Any tmp{val};
   value.push_back(tmp);
 }
 
@@ -222,6 +304,8 @@ Buffer VectorType::serialize() {
   return ret;
 }
 
+Any &VectorType::operator[](uint64_t idx) { return (value.get())[idx]; }
+
 class Serializator {
 public:
   Buffer serialize();
@@ -229,7 +313,8 @@ public:
 
   template <typename Arg>
   void push(Arg &&val);
-  //   static vector<Any> deserialize(const Buffer &b);
+  static vector<Any> deserialize(const Buffer &b);
+
 private:
   vector<Any> storage;
 };
@@ -258,16 +343,15 @@ string Serializator::toString() {
   return ss.str();
 }
 
-#if 0
 vector<Any> Serializator::deserialize(const Buffer &b) {
   vector<Any> ret;
   auto iter = b.cbegin();
   auto size = deserializeUint(iter);
   for (uint64_t i = 0; i != size; ++i) {
-    ret.push_back(Any(iter));
+    auto a = Any::deserialize(iter);
+    ret.push_back(a);
   }
   return ret;
 }
-#endif
 
 #endif
